@@ -1,0 +1,19 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+
+  # Prometheus monitoring itself
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["prometheus:9090"]
+
+  # Your Flask monitoring application
+  - job_name: "monitoring-app"
+    static_configs:
+      - targets: ["monitoring-container:5000"]
+
+  # Docker container monitoring
+  - job_name: "cadvisor"
+    static_configs:
+      - targets: ["cadvisor:8080"]
