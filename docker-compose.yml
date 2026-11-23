@@ -1,0 +1,161 @@
+services:
+
+  # ----------------------------------------
+  # Flask Monitoring & Logging Dashboard
+  # ----------------------------------------
+  monitoring-app:
+    container_name: monitoring-app
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./app:/app
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - PROMETHEUS_URL=http://prometheus:9090
+      - LOKI_URL=http://loki:3100
+      - ALERTMANAGER_URL=http://alertmanager:9093
+      - GRAFANA_URL=http://localhost:3000
+      - TOTAL_CPU_CORES=8
+    restart: unless-stopped
+    networks:
+      - monitoring-network
+    depends_on:
+      - prometheus
+      - loki
+
+  # ----------------------------------------
+  # Docker Container Log Collector (Loki Shipper)
+  # ----------------------------------------
+  log-collector:
+    container_name: log-collector
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["python", "log_collector.py"]
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - LOKI_URL=http://loki:3100/loki/api/v1/push
+      - LOG_SCAN_INTERVAL=5
+      - IGNORE_CONTAINERS=log-collector,monitoring-log-collector
+    restart: unless-stopped
+    networks:
+      - monitoring-network
+    depends_on:
+      - loki
+
+  # ----------------------------------------
+  # Prometheus Time-Series Metrics
+  # ----------------------------------------
+  prometheus:
+    container_name: prometheus
+    image: prom/prometheus:v2.50.1
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/alert.rules.yml:/etc/prometheus/alert.rules.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.console.libraries=/usr/share/prometheus/console_libraries"
+      - "--web.console.templates=/usr/share/prometheus/consoles"
+      - "--web.enable-lifecycle"
+    restart: unless-stopped
+    networks:
+      - monitoring-network
+
+  # ----------------------------------------
+  # Prometheus Alertmanager
+  # ----------------------------------------
+  alertmanager:
+    container_name: alertmanager
+    image: prom/alertmanager:v0.27.0
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    restart: unless-stopped
+    networks:
+      - monitoring-network
+
+  # ----------------------------------------
+  # cAdvisor Container Resource Monitoring
+  # ----------------------------------------
+  cadvisor:
+    container_name: cadvisor
+    image: gcr.io/cadvisor/cadvisor:v0.49.1
+    ports:
+      - "8888:8080"
+    command:
+      - "--docker_only=true"
+      - "--housekeeping_interval=10s"
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    privileged: true
+    restart: unless-stopped
+    networks:
+      - monitoring-network
+
+  # ----------------------------------------
+  # Grafana Loki Log Ingestion
+  # ----------------------------------------
+  loki:
+    container_name: loki
+    image: grafana/loki:3.0.0
+    ports:
+      - "3100:3100"
+    command: -config.file=/etc/loki/local-config.yaml
+    volumes:
+      - loki-data:/loki
+    restart: unless-stopped
+    networks:
+      - monitoring-network
+
+  # ----------------------------------------
+  # Grafana Visualizations & Dashboards
+  # ----------------------------------------
+  grafana:
+    container_name: grafana
+    image: grafana/grafana:10.4.0
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning
+      - grafana-data:/var/lib/grafana
+    restart: unless-stopped
+    networks:
+      - monitoring-network
+    depends_on:
+      - prometheus
+      - loki
+
+# ----------------------------------------
+# Persistent Storage Volumes
+# ----------------------------------------
+volumes:
+  prometheus-data:
+  loki-data:
+  grafana-data:
+
+# ----------------------------------------
+# Internal Bridge Network
+# ----------------------------------------
+networks:
+  monitoring-network:
+    driver: bridge

@@ -1,0 +1,29 @@
+groups:
+  - name: devops_platform_alerts
+    rules:
+      - alert: HighContainerCpuUsage
+        expr: 100 * sum by (name) (rate(container_cpu_usage_seconds_total{id=~"/docker/[0-9a-f]+",name!=""}[5m])) / 8 > 85
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage on container {{ $labels.name }}"
+          description: "Container {{ $labels.name }} CPU usage is exceeding 85% for more than 2 minutes."
+
+      - alert: HighContainerMemoryUsage
+        expr: sum by (name) (container_memory_working_set_bytes{id=~"/docker/[0-9a-f]+",name!=""}) > 1073741824
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High Memory usage on container {{ $labels.name }}"
+          description: "Container {{ $labels.name }} working set memory has exceeded 1GB for more than 2 minutes."
+
+      - alert: ServiceTargetDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Target {{ $labels.instance }} is unreachable"
+          description: "Scrape job {{ $labels.job }} instance {{ $labels.instance }} has been down for more than 1 minute."

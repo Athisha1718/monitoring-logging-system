@@ -1,0 +1,201 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DevOps Monitoring & Logging Platform</title>
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <!-- Chart.js for real-time and historical visualization -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+
+<body>
+
+    <div class="sidebar">
+        <h2>ðŸ›¡ï¸ DevOps Monitor</h2>
+
+        <a href="#section-metrics" class="menu active" data-target="section-metrics">Dashboard</a>
+        <a href="#section-containers" class="menu" data-target="section-containers">Containers</a>
+        <a href="#section-logs" class="menu" data-target="section-logs">Logs</a>
+        <a href="#section-alerts" class="menu" data-target="section-alerts">Alerts</a>
+
+        <div class="sidebar-divider"></div>
+        <a id="grafanaLink" href="http://localhost:3000" target="_blank" rel="noopener noreferrer" class="menu grafana-menu">
+            ðŸ“Š Grafana UI <span class="external-icon">â†—</span>
+        </a>
+    </div>
+
+    <div class="main">
+
+        <div class="topbar">
+            <div>
+                <h1>DevOps Monitoring Platform</h1>
+                <p class="subtitle">Real-time Docker metrics, historical charts, Loki log streams & alerts</p>
+            </div>
+
+            <div class="topbar-actions">
+                <div class="status" id="statusBadge">
+                    <span class="dot"></span>
+                    <span id="systemStatus">Connecting...</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Metric Cards -->
+        <div class="cards">
+
+            <div class="card">
+                <h3>CPU Usage</h3>
+                <h2 id="cpuValue">--%</h2>
+                <p>Current container usage</p>
+            </div>
+
+            <div class="card">
+                <h3>Memory Usage</h3>
+                <h2 id="memoryValue">-- MB</h2>
+                <p>Total memory working set</p>
+            </div>
+
+            <div class="card">
+                <h3>Containers</h3>
+                <h2 id="containerValue">--</h2>
+                <p>Active monitored containers</p>
+            </div>
+
+            <div class="card" id="alertCard">
+                <h3>Active Alerts</h3>
+                <h2 id="alertValue">0</h2>
+                <p id="alertSummary">All systems normal</p>
+            </div>
+
+        </div>
+
+        <!-- Historical CPU and Memory Charts -->
+        <div class="section" id="section-metrics">
+            <div class="section-header">
+                <h2>System Resource Trends</h2>
+                <div class="chart-controls">
+                    <div class="time-range-controls">
+                        <button class="time-btn" data-minutes="15">15m</button>
+                        <button class="time-btn active" data-minutes="30">30m</button>
+                        <button class="time-btn" data-minutes="60">1h</button>
+                        <button class="time-btn" data-minutes="240">4h</button>
+                    </div>
+                    <span class="subtext">Last Updated: <strong id="lastUpdated">Waiting...</strong></span>
+                </div>
+            </div>
+
+            <div class="metric-details">
+                <p>Real-Time CPU: <strong id="cpuDetail">--%</strong></p>
+                <p>Real-Time Memory: <strong id="memoryDetail">-- MB</strong></p>
+                <p>Prometheus Status: <strong id="healthStatus">Checking...</strong></p>
+            </div>
+
+            <div class="charts-container">
+                <div class="chart-box">
+                    <h3>CPU Usage (%)</h3>
+                    <div class="chart-wrapper">
+                        <canvas id="cpuChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="chart-box">
+                    <h3>Memory Usage (MB)</h3>
+                    <div class="chart-wrapper">
+                        <canvas id="memChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Docker Containers Table -->
+        <div class="section" id="section-containers">
+            <div class="section-header">
+                <h2>Docker Containers</h2>
+                <span class="badge badge-info" id="containerCountBadge">0 Monitored</span>
+            </div>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>Container</th>
+                        <th>Status</th>
+                        <th>Uptime</th>
+                        <th>CPU Usage</th>
+                        <th>Memory Usage</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+
+                <tbody id="containerTable">
+                    <tr>
+                        <td colspan="6">Waiting for container data...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Docker Logs Viewer with Filters -->
+        <div class="section" id="section-logs">
+            <div class="section-header">
+                <h2>Live Docker Logs</h2>
+                <div class="log-actions">
+                    <button id="toggleAutoScrollBtn" class="btn btn-sm btn-active">Auto-scroll: ON</button>
+                    <button id="clearLogsBtn" class="btn btn-sm btn-secondary">Clear View</button>
+                </div>
+            </div>
+
+            <!-- Filter Controls -->
+            <div class="filter-bar">
+                <div class="filter-group">
+                    <label for="logContainerSelect">Container:</label>
+                    <select id="logContainerSelect">
+                        <option value="">All Containers</option>
+                    </select>
+                </div>
+
+                <div class="filter-group">
+                    <label for="logLevelSelect">Level:</label>
+                    <select id="logLevelSelect">
+                        <option value="">All Levels</option>
+                        <option value="ERROR">ERROR</option>
+                        <option value="WARN">WARN</option>
+                        <option value="INFO">INFO</option>
+                    </select>
+                </div>
+
+                <div class="filter-group flex-grow">
+                    <label for="logSearchInput">Search:</label>
+                    <input type="text" id="logSearchInput" placeholder="Filter log text regex / substring...">
+                </div>
+
+                <div class="filter-buttons">
+                    <button id="applyLogFilterBtn" class="btn">Filter</button>
+                    <button id="resetLogFilterBtn" class="btn btn-secondary">Reset</button>
+                </div>
+            </div>
+
+            <div class="logs" id="logContainer">
+                <p>Waiting for live log integration...</p>
+            </div>
+        </div>
+
+        <!-- Alert Management Section -->
+        <div class="section" id="section-alerts">
+            <div class="section-header">
+                <h2>Alert Management</h2>
+                <span class="badge" id="alertsCountBadge">0 Firing</span>
+            </div>
+
+            <div id="alertsContainer">
+                <p class="empty-state">Checking alert rules...</p>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Scripts -->
+    <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+</body>
+</html>
